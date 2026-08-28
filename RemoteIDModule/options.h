@@ -10,3 +10,5 @@
 
 // do we support MAVLink connnection to flight controller?
 #define AP_MAVLINK_ENABLED 1
+
+#define REMOTEID_SIMULATE 1
