@@ -25,6 +25,16 @@
 #include "efuse.h"
 #include "led.h"
 
+#ifdef REMOTEID_SIMULATE
+// 模拟位置数据
+float sim_lat = 31.2304f;
+float sim_lon = 121.4737f;
+float sim_altitude = 50.0f;
+float sim_speed_h = 5.0f;
+float sim_speed_v = 0.0f;
+float sim_heading = 0.0f;
+uint32_t sim_timestamp = 0;
+#endif
 
 #if AP_DRONECAN_ENABLED
 static DroneCAN dronecan;
@@ -357,6 +367,10 @@ static uint8_t loop_counter = 0;
 
 void loop()
 {
+#ifdef REMOTEID_SIMULATE
+simulate_update();
+#endif
+
 #if AP_MAVLINK_ENABLED
     mavlink1.update();
     mavlink2.update();
@@ -454,3 +468,25 @@ void loop()
     // sleep for a bit for power saving
     delay(1);
 }
+
+#ifdef REMOTEID_SIMULATE
+void simulate_update()
+{
+    static uint32_t last_update_ms = 0;
+    uint32_t now = millis();
+    if (now - last_update_ms < 200) {
+        return;
+    }
+    last_update_ms = now;
+
+    loc.latitude = sim_lat;
+    loc.longitude = sim_lon;
+    loc.altitudeGeo = sim_altitude;
+    loc.speedHorizontal = sim_speed_h;
+    loc.speedVertical = sim_speed_v;
+    loc.direction = sim_heading;
+    loc.timestamp = now / 1000U;
+
+    system_state &= ~REMOTE_ID_SYSTEM_FAILURE;
+}
+#endif
