@@ -24,6 +24,7 @@
 #include <esp_ota_ops.h>
 #include "efuse.h"
 #include "led.h"
+#include "location.h"
 
 #ifdef REMOTEID_SIMULATE
 // 模拟位置数据
@@ -472,19 +473,19 @@ simulate_update();
 #ifdef REMOTEID_SIMULATE
 void simulate_update()
 {
-    static uint32_t last_update_ms = 0;
+    static uint32_t last_t = 0;
     uint32_t now = millis();
-    if (now - last_update_ms < 200) {
-        return;
-    }
-    last_update_ms = now;
+    if(now - last_t < 1000) return;
+    last_t = now;
 
+    location_data_t loc;
     loc.latitude = sim_lat;
     loc.longitude = sim_lon;
-    loc.altitudeGeo = sim_altitude;
-    loc.speedHorizontal = sim_speed_h;
-    loc.speedVertical = sim_speed_v;
-    loc.direction = sim_heading;
-    loc.timestamp = now / 1000U;
+    loc.altitude = sim_altitude;
+    loc.horizontal_speed = 0.0f;
+    loc.vertical_speed = 0.0f;
+    loc.timestamp = 0;
+
+    set_location_data(&loc);
 }
 #endif
