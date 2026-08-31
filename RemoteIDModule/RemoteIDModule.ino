@@ -24,19 +24,10 @@
 #include <esp_ota_ops.h>
 #include "efuse.h"
 #include "led.h"
+#include <mavlink.h>
 
 #ifdef REMOTEID_SIMULATE
-typedef struct {
-    float latitude;
-    float longitude;
-    float altitude;
-    float horizontal_speed;
-    float vertical_speed;
-    float heading;
-    uint32_t timestamp;
-} location_data_t;
-
-extern mavlink_open_drone_id_location_t location;
+extern void set_location(const mavlink_open_drone_id_location_t *loc);
 
 float sim_lat = 31.2304f;
 float sim_lon = 121.4737f;
@@ -481,25 +472,25 @@ simulate_update();
 }
 
 #ifdef REMOTEID_SIMULATE
-typedef struct {
-    float latitude;
-    float longitude;
-    float altitude;
-    float horizontal_speed;
-    float vertical_speed;
-    float heading;
-    uint32_t timestamp;
-} location_data_t;
+void simulate_update()
+{
+    static uint32_t last_t = 0;
+    uint32_t now = millis();
+    if(now - last_t < 1000) return;
+    last_t = now;
 
-extern mavlink_open_drone_id_location_t location;
+    mavlink_open_drone_id_location_t loc;
+    loc.latitude  = sim_lat  * 10000000.0f;
+    loc.longitude = sim_lon  * 10000000.0f;
+    loc.altitude  = sim_altitude;
+    loc.horizontal_speed = sim_speed_h;
+    loc.vertical_speed   = sim_speed_v;
+    loc.heading  = sim_heading;
+    loc.timestamp = sim_timestamp;
 
-float sim_lat = 31.2304f;
-float sim_lon = 121.4737f;
-float sim_altitude = 50.0f;
-float sim_speed_h = 5.0f;
-float sim_speed_v = 0.0f;
-float sim_heading = 0.0f;
-uint32_t sim_timestamp = 0;
+    set_location(&loc);
+}
 #endif
+
 
 
