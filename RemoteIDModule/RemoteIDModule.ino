@@ -11,6 +11,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <opendroneid.h>
+#include "MAVLink.h"   // ←恢复这一行！！项目本地MAVLinkSerial类定义
 #include "DroneCAN.h"
 #include "WiFi_TX.h"
 #include "BLE_TX.h"
