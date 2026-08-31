@@ -486,7 +486,5 @@ void simulate_update()
     loc.speedVertical = sim_speed_v;
     loc.direction = sim_heading;
     loc.timestamp = now / 1000U;
-
-    system_state &= ~REMOTE_ID_SYSTEM_FAILURE;
 }
 #endif
