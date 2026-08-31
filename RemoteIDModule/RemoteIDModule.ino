@@ -36,9 +36,8 @@ typedef struct {
     uint32_t timestamp;
 } location_data_t;
 
-extern Transport transport;
+extern mavlink_open_drone_id_location_t location;
 
-// 下面保留你原来的全局变量
 float sim_lat = 31.2304f;
 float sim_lon = 121.4737f;
 float sim_altitude = 50.0f;
@@ -482,22 +481,25 @@ simulate_update();
 }
 
 #ifdef REMOTEID_SIMULATE
-void simulate_update()
-{
-    static uint32_t last_t = 0;
-    uint32_t now = millis();
-    if(now - last_t < 1000) return;
-    last_t = now;
+typedef struct {
+    float latitude;
+    float longitude;
+    float altitude;
+    float horizontal_speed;
+    float vertical_speed;
+    float heading;
+    uint32_t timestamp;
+} location_data_t;
 
-    transport.location.latitude = sim_lat;
-    transport.location.longitude = sim_lon;
-    transport.location.altitude = sim_altitude;
-    transport.location.horizontal_speed = sim_speed_h;
-    transport.location.vertical_speed = sim_speed_v;
-    transport.location.heading = sim_heading;
-    transport.location.timestamp = sim_timestamp;
-    transport.has_location = true;
-}
+extern mavlink_open_drone_id_location_t location;
+
+float sim_lat = 31.2304f;
+float sim_lon = 121.4737f;
+float sim_altitude = 50.0f;
+float sim_speed_h = 5.0f;
+float sim_speed_v = 0.0f;
+float sim_heading = 0.0f;
+uint32_t sim_timestamp = 0;
 #endif
 
 
