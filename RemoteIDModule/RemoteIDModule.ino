@@ -11,7 +11,7 @@
 #include <time.h>
 #include <sys/time.h>
 #include <opendroneid.h>
-#include "MAVLink.h"   // ←恢复这一行！！项目本地MAVLinkSerial类定义
+// ===== 删除不存在的 #include "MAVLink.h" ！！仓库无此文件 =====
 #include "DroneCAN.h"
 #include "WiFi_TX.h"
 #include "BLE_TX.h"
@@ -32,15 +32,20 @@ float sim_speed_h = 5.0f;
 float sim_speed_v = 0.0f;
 float sim_heading = 0.0f;
 uint32_t sim_timestamp = 0;
+// 模拟模式基础ID
+char sim_uas_id[21] = "SIM000012345678";
+char sim_operator_id[21] = "OP_SIMUSER";
 #endif
 
 #if AP_DRONECAN_ENABLED
 static DroneCAN dronecan;
 #endif
+
 #if AP_MAVLINK_ENABLED
 static MAVLinkSerial mavlink1{Serial1, MAVLINK_COMM_0};
 static MAVLinkSerial mavlink2{Serial,  MAVLINK_COMM_1};
 #endif
+
 static WiFi_TX wifi;
 static BLE_TX ble;
 #define DEBUG_BAUDRATE 57600
@@ -74,6 +79,7 @@ void setup()
     Serial1.begin(g.baudrate, SERIAL_8N1, PIN_UART_RX, PIN_UART_TX);
     // set all fields to invalid/initial values
     odid_initUasData(&UAS_data);
+
 #if AP_MAVLINK_ENABLED
     mavlink1.init();
     mavlink2.init();
@@ -81,6 +87,7 @@ void setup()
 #if AP_DRONECAN_ENABLED
     dronecan.init();
 #endif
+
     set_efuses();
     CheckFirmware::check_OTA_running();
 #if defined(PIN_CAN_EN)
@@ -320,6 +327,42 @@ static void set_data(Transport &t)
     }
 }
 
+#ifdef REMOTEID_SIMULATE
+void simulate_update()
+{
+    static uint32_t last_t = 0;
+    uint32_t now = millis();
+    if(now - last_t < 1000) return;
+    last_t = now;
+
+    // 完整填充BasicID、OperatorID + Location，APP才能完整识别
+    odid_initUasData(&UAS_data);
+
+    UAS_data.BasicID[0].UAType = ODID_UATYPE_FIXED_WING;
+    UAS_data.BasicID[0].IDType = ODID_IDTYPE_SERIAL_NUMBER;
+    ODID_COPY_STR(UAS_data.BasicID[0].UASID, sim_uas_id);
+    UAS_data.BasicIDValid[0] = 1;
+
+    UAS_data.OperatorID.OperatorIdType = ODID_OPERATOR_ID_TYPE_OPERATOR;
+    ODID_COPY_STR(UAS_data.OperatorID.OperatorId, sim_operator_id);
+    UAS_data.OperatorIDValid = 1;
+
+    UAS_data.Location.Latitude = sim_lat;
+    UAS_data.Location.Longitude = sim_lon;
+    UAS_data.Location.AltitudeGeo = sim_altitude;
+    UAS_data.Location.SpeedHorizontal = sim_speed_h;
+    UAS_data.Location.SpeedVertical = sim_speed_v;
+    UAS_data.Location.Direction = sim_heading;
+    UAS_data.Location.TimeStamp = now;
+    UAS_data.LocationValid = 1;
+    UAS_data.Location.Status = ODID_STATUS_AIRBORNE;
+
+    // 模拟校验通过，LED状态正常
+    arm_check_ok = true;
+    led.set_state(Led::LedState::ARM_OK);
+}
+#endif
+
 static uint8_t loop_counter = 0;
 void loop()
 {
@@ -334,19 +377,29 @@ void loop()
 #if AP_DRONECAN_ENABLED
     dronecan.update();
 #endif
+
     const uint32_t now_ms = millis();
-    // the transports have common static data, so we can just use the
-    // first for status
+
+    // ==========修复编译错误：REMOTEID_SIMULATE模式允许不启用MAVLINK/DroneCAN==========
 #if AP_MAVLINK_ENABLED
     auto &transport = mavlink1;
 #elif AP_DRONECAN_ENABLED
     auto &transport = dronecan;
+#elif defined(REMOTEID_SIMULATE)
+    // 模拟模式下不走transport，set_data不再调用
 #else
     #error "Must enable DroneCAN or MAVLink"
 #endif
+
     bool have_location = false;
+#if AP_MAVLINK_ENABLED || AP_DRONECAN_ENABLED
     const uint32_t last_location_ms = transport.get_last_location_ms();
     const uint32_t last_system_ms = transport.get_last_system_ms();
+#else
+    const uint32_t last_location_ms = now_ms;
+    const uint32_t last_system_ms = now_ms;
+#endif
+
     led.update();
     status_reason = "";
 
@@ -363,14 +416,18 @@ void loop()
 #endif
     }
 
+#if AP_MAVLINK_ENABLED || AP_DRONECAN_ENABLED
     if (transport.get_parse_fail() != nullptr) {
         UAS_data.Location.Status = ODID_STATUS_REMOTE_ID_SYSTEM_FAILURE;
         status_reason = String(transport.get_parse_fail());
     }
+#endif
+
     // web update has to happen after we update Status above
     if (g.webserver_enable) {
         webif.update();
     }
+
     if (g.bcast_powerup) {
         // if we are broadcasting on powerup we always mark location valid
         // so the location with default data is sent
@@ -389,7 +446,12 @@ void loop()
         }
 #endif
     }
+
+    // 只有非模拟模式才调用来自transport的set_data
+#if AP_MAVLINK_ENABLED || AP_DRONECAN_ENABLED
     set_data(transport);
+#endif
+
     static uint32_t last_update_wifi_nan_ms;
     if (g.wifi_nan_rate > 0 &&
         now_ms - last_update_wifi_nan_ms > 1000/g.wifi_nan_rate) {
@@ -418,24 +480,3 @@ void loop()
     // sleep for a bit for power saving
     delay(1);
 }
-
-#ifdef REMOTEID_SIMULATE
-void simulate_update()
-{
-    static uint32_t last_t = 0;
-    uint32_t now = millis();
-    if(now - last_t < 1000) return;
-    last_t = now;
-
-    //直接填充广播数据源UAS_data.Location
-    UAS_data.Location.Latitude = sim_lat;
-    UAS_data.Location.Longitude = sim_lon;
-    UAS_data.Location.AltitudeGeo = sim_altitude;
-    UAS_data.Location.SpeedHorizontal = sim_speed_h;
-    UAS_data.Location.SpeedVertical = sim_speed_v;
-    UAS_data.Location.Direction = sim_heading;
-    UAS_data.Location.TimeStamp = now;
-    UAS_data.LocationValid = 1;
-    UAS_data.Location.Status = ODID_STATUS_AIRBORNE;
-}
-#endif
