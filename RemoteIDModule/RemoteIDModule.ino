@@ -4,7 +4,6 @@
 /*
   released under GNU GPL v2 or later
  */
-
 #include "options.h"
 #include <Arduino.h>
 #include "version.h"
@@ -12,7 +11,6 @@
 #include <time.h>
 #include <sys/time.h>
 #include <opendroneid.h>
-#include "mavlink.h"
 #include "DroneCAN.h"
 #include "WiFi_TX.h"
 #include "BLE_TX.h"
@@ -24,11 +22,8 @@
 #include <esp_ota_ops.h>
 #include "efuse.h"
 #include "led.h"
-#include <mavlink.h>
 
 #ifdef REMOTEID_SIMULATE
-extern void set_location(const mavlink_open_drone_id_location_t *loc);
-
 float sim_lat = 31.2304f;
 float sim_lon = 121.4737f;
 float sim_altitude = 50.0f;
@@ -41,26 +36,20 @@ uint32_t sim_timestamp = 0;
 #if AP_DRONECAN_ENABLED
 static DroneCAN dronecan;
 #endif
-
 #if AP_MAVLINK_ENABLED
 static MAVLinkSerial mavlink1{Serial1, MAVLINK_COMM_0};
 static MAVLinkSerial mavlink2{Serial,  MAVLINK_COMM_1};
 #endif
-
 static WiFi_TX wifi;
 static BLE_TX ble;
-
 #define DEBUG_BAUDRATE 57600
-
 // OpenDroneID output data structure
 ODID_UAS_Data UAS_data;
 String status_reason;
 static uint32_t last_location_ms;
 static WebInterface webif;
-
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
-
 static bool arm_check_ok = false; // goes true for LED arm check status
 static bool pfst_check_ok = false;
 
@@ -71,26 +60,19 @@ void setup()
 {
     // disable brownout checking
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
-
     g.init();
-
     led.set_state(Led::LedState::INIT);
     led.update();
-
     if (g.webserver_enable) {
         // need WiFi for web server
         wifi.init();
     }
-
     // Serial for debug printf
     Serial.begin(g.baudrate);
-
     // Serial1 for MAVLink
     Serial1.begin(g.baudrate, SERIAL_8N1, PIN_UART_RX, PIN_UART_TX);
-
     // set all fields to invalid/initial values
     odid_initUasData(&UAS_data);
-
 #if AP_MAVLINK_ENABLED
     mavlink1.init();
     mavlink2.init();
@@ -98,51 +80,39 @@ void setup()
 #if AP_DRONECAN_ENABLED
     dronecan.init();
 #endif
-
     set_efuses();
-
     CheckFirmware::check_OTA_running();
-
 #if defined(PIN_CAN_EN)
     // optional CAN enable pin
     pinMode(PIN_CAN_EN, OUTPUT);
     digitalWrite(PIN_CAN_EN, HIGH);
 #endif
-
 #if defined(PIN_CAN_nSILENT)
     // disable silent pin
     pinMode(PIN_CAN_nSILENT, OUTPUT);
     digitalWrite(PIN_CAN_nSILENT, HIGH);
 #endif
-
 #if defined(PIN_CAN_TERM)
 #if !defined(CAN_TERM_EN)
 #define CAN_TERM_EN HIGH
 #endif
-
     // optional CAN termination control
     pinMode(PIN_CAN_TERM, OUTPUT);
-
     if (g.can_term == 1) {
         digitalWrite(PIN_CAN_TERM, CAN_TERM_EN);
     } else {
         digitalWrite(PIN_CAN_TERM, !CAN_TERM_EN);
     }
 #endif
-
 #if defined(BUZZER_PIN)
     //set BuZZER OUTPUT ACTIVE, just to show it works
     pinMode(GPIO_NUM_39, OUTPUT);
     digitalWrite(GPIO_NUM_39, HIGH);
 #endif
-
     pfst_check_ok = true;   // note - this will need to be expanded to better capture PFST test status
-
     // initially set LED for fail
     led.set_state(Led::LedState::ARM_FAIL);
-
     esp_log_level_set("*", ESP_LOG_DEBUG);
-
     esp_ota_mark_app_valid_cancel_rollback();
 }
 
@@ -157,7 +127,6 @@ void setup()
 static const char *check_parse(void)
 {
     String ret = "";
-
     {
         ODID_Location_encoded encoded {};
         if (encodeLocationMessage(&encoded, &UAS_data.Location) != ODID_SUCCESS) {
@@ -217,9 +186,7 @@ static void set_data(Transport &t)
     const auto &system = t.get_system();
     const auto &self_id = t.get_self_id();
     const auto &location = t.get_location();
-
     odid_initUasData(&UAS_data);
-
     /*
       if we don't have BasicID info from parameters and we have it
       from the DroneCAN or MAVLink transport then copy it to the
@@ -227,7 +194,6 @@ static void set_data(Transport &t)
       UAS_ID string via a MAVLink BASIC_ID message and also offers a
       migration path from the old approach of GCS setting these values
       to having them as parameters
-
       BasicID 2 can be set in parameters, or provided via mavlink We
       don't persist the BasicID2 if provided via mavlink to allow
       users to change BasicID2 on different days
@@ -243,7 +209,6 @@ static void set_data(Transport &t)
             g.set_by_name_string("UAS_ID", uas_id);
         }
     }
-
     // BasicID
     if (g.have_basic_id_info() && !(g.options & OPTIONS_DONT_SAVE_BASIC_ID_TO_PARAMETERS)) {
         // from parameters
@@ -251,7 +216,6 @@ static void set_data(Transport &t)
         UAS_data.BasicID[0].IDType = (ODID_idtype_t)g.id_type;
         ODID_COPY_STR(UAS_data.BasicID[0].UASID, g.uas_id);
         UAS_data.BasicIDValid[0] = 1;
-
         // BasicID 2
         if (g.have_basic_id_2_info()) {
             // from parameters
@@ -274,7 +238,6 @@ static void set_data(Transport &t)
             }
         }
     }
-
     if (g.options & OPTIONS_DONT_SAVE_BASIC_ID_TO_PARAMETERS) {
         if (basic_id.ua_type != 0 &&
         basic_id.id_type != 0 &&
@@ -292,21 +255,18 @@ static void set_data(Transport &t)
             }
         }
     }
-
     // OperatorID
     if (strlen(operator_id.operator_id) > 0) {
         UAS_data.OperatorID.OperatorIdType = (ODID_operatorIdType_t)operator_id.operator_id_type;
         ODID_COPY_STR(UAS_data.OperatorID.OperatorId, operator_id.operator_id);
         UAS_data.OperatorIDValid = 1;
     }
-
     // SelfID
     if (strlen(self_id.description) > 0) {
         UAS_data.SelfID.DescType = (ODID_desctype_t)self_id.description_type;
         ODID_COPY_STR(UAS_data.SelfID.Desc, self_id.description);
         UAS_data.SelfIDValid = 1;
     }
-
     // System
     if (system.timestamp != 0) {
         UAS_data.System.OperatorLocationType = (ODID_operator_location_type_t)system.operator_location_type;
@@ -323,7 +283,6 @@ static void set_data(Transport &t)
         UAS_data.System.Timestamp = system.timestamp;
         UAS_data.SystemValid = 1;
     }
-
     // Location
     if (location.timestamp != 0) {
         UAS_data.Location.Status = (ODID_status_t)location.status;
@@ -344,19 +303,14 @@ static void set_data(Transport &t)
         UAS_data.Location.TimeStamp = location.timestamp;
         UAS_data.LocationValid = 1;
     }
-
     const char *reason = check_parse();
     t.arm_status_check(reason);
     t.set_parse_fail(reason);
-
     arm_check_ok = (reason==nullptr);
-
     if (g.options & OPTIONS_FORCE_ARM_OK) {
         arm_check_ok = true;
     }
-
     led.set_state(pfst_check_ok && arm_check_ok? Led::LedState::ARM_OK : Led::LedState::ARM_FAIL);
-
     uint32_t now_ms = millis();
     uint32_t location_age_ms = now_ms - t.get_last_location_ms();
     uint32_t last_location_age_ms = now_ms - last_location_ms;
@@ -366,11 +320,10 @@ static void set_data(Transport &t)
 }
 
 static uint8_t loop_counter = 0;
-
 void loop()
 {
 #ifdef REMOTEID_SIMULATE
-simulate_update();
+    simulate_update();
 #endif
 
 #if AP_MAVLINK_ENABLED
@@ -380,9 +333,7 @@ simulate_update();
 #if AP_DRONECAN_ENABLED
     dronecan.update();
 #endif
-
     const uint32_t now_ms = millis();
-
     // the transports have common static data, so we can just use the
     // first for status
 #if AP_MAVLINK_ENABLED
@@ -392,35 +343,33 @@ simulate_update();
 #else
     #error "Must enable DroneCAN or MAVLink"
 #endif
-
     bool have_location = false;
     const uint32_t last_location_ms = transport.get_last_location_ms();
     const uint32_t last_system_ms = transport.get_last_system_ms();
-
     led.update();
-
     status_reason = "";
 
     if (last_location_ms == 0 ||
         now_ms - last_location_ms > 5000) {
+#ifndef REMOTEID_SIMULATE
         UAS_data.Location.Status = ODID_STATUS_REMOTE_ID_SYSTEM_FAILURE;
+#endif
     }
-
     if (last_system_ms == 0 ||
         now_ms - last_system_ms > 5000) {
+#ifndef REMOTEID_SIMULATE
         UAS_data.Location.Status = ODID_STATUS_REMOTE_ID_SYSTEM_FAILURE;
+#endif
     }
 
     if (transport.get_parse_fail() != nullptr) {
         UAS_data.Location.Status = ODID_STATUS_REMOTE_ID_SYSTEM_FAILURE;
         status_reason = String(transport.get_parse_fail());
     }
-
     // web update has to happen after we update Status above
     if (g.webserver_enable) {
         webif.update();
     }
-
     if (g.bcast_powerup) {
         // if we are broadcasting on powerup we always mark location valid
         // so the location with default data is sent
@@ -430,35 +379,34 @@ simulate_update();
         }
     } else {
         // only broadcast if we have received a location at least once
+#ifdef REMOTEID_SIMULATE
+        //模拟模式跳过等待外部位置源
+#else
         if (last_location_ms == 0) {
             delay(1);
             return;
         }
+#endif
     }
-
     set_data(transport);
-
     static uint32_t last_update_wifi_nan_ms;
     if (g.wifi_nan_rate > 0 &&
         now_ms - last_update_wifi_nan_ms > 1000/g.wifi_nan_rate) {
         last_update_wifi_nan_ms = now_ms;
         wifi.transmit_nan(UAS_data);
     }
-
     static uint32_t last_update_wifi_beacon_ms;
     if (g.wifi_beacon_rate > 0 &&
         now_ms - last_update_wifi_beacon_ms > 1000/g.wifi_beacon_rate) {
         last_update_wifi_beacon_ms = now_ms;
         wifi.transmit_beacon(UAS_data);
     }
-
     static uint32_t last_update_bt5_ms;
     if (g.bt5_rate > 0 &&
         now_ms - last_update_bt5_ms > 1000/g.bt5_rate) {
         last_update_bt5_ms = now_ms;
         ble.transmit_longrange(UAS_data);
     }
-
     static uint32_t last_update_bt4_ms;
     int bt4_states = UAS_data.BasicIDValid[1] ? 7 : 6;
     if (g.bt4_rate > 0 &&
@@ -466,7 +414,6 @@ simulate_update();
         last_update_bt4_ms = now_ms;
         ble.transmit_legacy(UAS_data);
     }
-
     // sleep for a bit for power saving
     delay(1);
 }
@@ -479,18 +426,15 @@ void simulate_update()
     if(now - last_t < 1000) return;
     last_t = now;
 
-    mavlink_open_drone_id_location_t loc;
-    loc.latitude  = sim_lat  * 10000000.0f;
-    loc.longitude = sim_lon  * 10000000.0f;
-    loc.altitude  = sim_altitude;
-    loc.horizontal_speed = sim_speed_h;
-    loc.vertical_speed   = sim_speed_v;
-    loc.heading  = sim_heading;
-    loc.timestamp = sim_timestamp;
-
-    set_location(&loc);
+    //直接填充广播数据源UAS_data.Location
+    UAS_data.Location.Latitude = sim_lat;
+    UAS_data.Location.Longitude = sim_lon;
+    UAS_data.Location.AltitudeGeo = sim_altitude;
+    UAS_data.Location.SpeedHorizontal = sim_speed_h;
+    UAS_data.Location.SpeedVertical = sim_speed_v;
+    UAS_data.Location.Direction = sim_heading;
+    UAS_data.Location.TimeStamp = now;
+    UAS_data.LocationValid = 1;
+    UAS_data.Location.Status = ODID_STATUS_AIRBORNE;
 }
 #endif
-
-
-
