@@ -24,10 +24,21 @@
 #include <esp_ota_ops.h>
 #include "efuse.h"
 #include "led.h"
-#include "location.h"
 
 #ifdef REMOTEID_SIMULATE
-// 模拟位置数据
+typedef struct {
+    float latitude;
+    float longitude;
+    float altitude;
+    float horizontal_speed;
+    float vertical_speed;
+    float heading;
+    uint32_t timestamp;
+} location_data_t;
+
+extern void set_location_data(const location_data_t *loc);
+
+// 下面保留你原来的全局变量
 float sim_lat = 31.2304f;
 float sim_lon = 121.4737f;
 float sim_altitude = 50.0f;
@@ -482,10 +493,12 @@ void simulate_update()
     loc.latitude = sim_lat;
     loc.longitude = sim_lon;
     loc.altitude = sim_altitude;
-    loc.horizontal_speed = 0.0f;
-    loc.vertical_speed = 0.0f;
-    loc.timestamp = 0;
+    loc.horizontal_speed = sim_speed_h;
+    loc.vertical_speed = sim_speed_v;
+    loc.heading = sim_heading;
+    loc.timestamp = sim_timestamp;
 
     set_location_data(&loc);
 }
 #endif
+
