@@ -1,14 +1,11 @@
 name: Test Build
-
 on: [push, pull_request, workflow_dispatch]
 concurrency:
   group: ci-${{github.workflow}}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
       - uses: actions/checkout@v2
         with:
@@ -20,22 +17,20 @@ jobs:
           PATH="$HOME/.local/bin:$PATH"
           ./scripts/install_build_env.sh
           ./scripts/add_libraries.sh
-
       - name: Build
         env:
           HOME: ${{ runner.workspace }}/ArduRemoteID
+          EXTRA_CXXFLAGS: "-DREMOTEID_SIMULATE"
         run: |
           cd RemoteIDModule
           make setup
           make all
-
       - name: Check build files
         id: check_files
         uses: andstor/file-existence-action@v1
         with:
           files: RemoteIDModule/ArduRemoteID*.bin
           allow_failure: true
-
       - name: Archive build
         uses: actions/upload-artifact@v4
         with:
