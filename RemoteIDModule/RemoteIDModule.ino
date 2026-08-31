@@ -36,7 +36,7 @@ typedef struct {
     uint32_t timestamp;
 } location_data_t;
 
-extern void set_location_data(const location_data_t *loc);
+extern Transport transport;
 
 // 下面保留你原来的全局变量
 float sim_lat = 31.2304f;
@@ -489,16 +489,15 @@ void simulate_update()
     if(now - last_t < 1000) return;
     last_t = now;
 
-    location_data_t loc;
-    loc.latitude = sim_lat;
-    loc.longitude = sim_lon;
-    loc.altitude = sim_altitude;
-    loc.horizontal_speed = sim_speed_h;
-    loc.vertical_speed = sim_speed_v;
-    loc.heading = sim_heading;
-    loc.timestamp = sim_timestamp;
-
-    set_location_data(&loc);
+    transport.location.latitude = sim_lat;
+    transport.location.longitude = sim_lon;
+    transport.location.altitude = sim_altitude;
+    transport.location.horizontal_speed = sim_speed_h;
+    transport.location.vertical_speed = sim_speed_v;
+    transport.location.heading = sim_heading;
+    transport.location.timestamp = sim_timestamp;
+    transport.has_location = true;
 }
 #endif
+
 
